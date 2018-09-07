@@ -6,9 +6,13 @@ import scala.scalanative.scriptbridge.Export
 import scalanative.native._
 
 object Main {
+
   def main(args: Array[String]): Unit = {
-    val interp = TclInterp(Foo)
-    interp.exec("namespace eval Foo { namespace export bar }; namespace import Foo::*; bar 42")
+//    val interp = TclInterp(Foo)
+    //tcl.newStringObj("foo")
+//    interp.exec("namespace eval Foo { namespace export bar }; namespace import Foo::*; puts [bar 42]")
+ //   println(interp)
+    tcl.newStringObj("foo")
   }
 
 }
@@ -16,6 +20,6 @@ object Main {
 @Export
 @debug
 object Foo extends TclBridgeObject {
-
-  def bar(i: Int) = println("YEAH:"+i)
+  def bar(i: Int): Int = i+1
 }
+

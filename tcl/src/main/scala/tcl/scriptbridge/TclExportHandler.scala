@@ -9,6 +9,7 @@ class TclExportHandler(val c: whitebox.Context) extends ExportHandler {
   import c.universe._
 
   type ArgTypes = Seq[(TclType.Value,Int)]
+  type ReturnType = TclType.Value
 
   implicit class MacroData(data: Map[String,Any]) {
     type Data = Map[String, Any]
@@ -17,9 +18,21 @@ class TclExportHandler(val c: whitebox.Context) extends ExportHandler {
   }
 
   val intType = c.weakTypeOf[Int]
+  val longType = c.weakTypeOf[Long]
+  val booleanType = c.weakTypeOf[Boolean]
+  val floatType = c.weakTypeOf[Float]
+  val doubleType = c.weakTypeOf[Double]
+  val stringType = c.weakTypeOf[String]
+  val unitType = c.weakTypeOf[Unit]
 
   object TclType extends Enumeration {
     val Int = Value
+    val Long = Value
+    val Boolean = Value
+    val Double = Value
+    val Float = Value
+    val String = Value
+    val None = Value
   }
 
   override def analyze: Analysis = {
@@ -40,10 +53,10 @@ class TclExportHandler(val c: whitebox.Context) extends ExportHandler {
       val tclObj =
         q"""
            object __tcl extends tcl.scriptbridge.TclBridgeWrapper {
+             import scalanative.native._
              ..$functionWrappers
 
-             def __register(interp: tcl.TclInterp)   : Unit = {
-               import scalanative.native.CFunctionPtr
+             def __register(interp: tcl.TclInterp): Unit = {
                ..$registerCommands
              }
            }
@@ -58,14 +71,16 @@ class TclExportHandler(val c: whitebox.Context) extends ExportHandler {
   }
 
   private def genFunctionWrapper(f: DefDef)(implicit objectParts: ObjectParts): Tree = {
-    val callee = TermName(objectParts.fullName)
+    val callee = objectParts.name
     val argTypes = getArgTypes(f)
     val argDefs = genArgs(argTypes)
     val argList = genArgList(argTypes)
+    val resObj = genTclResult(getReturnType(f))
     q"""def ${f.name}(data: tcl.TclClientData, interpPtr: Ptr[Byte], objc: Int, objv: Ptr[Ptr[Byte]]): Int = {
-          val interp = interpPtr.cast[tcl.TclInterp]
+          val interp = data.cast[tcl.TclInterp]
           ..$argDefs
-          $callee.${f.name}(..$argList)
+          val res = $callee.${f.name}(..$argList)
+            ..$resObj
           tcl.TclStatus.OK
         }"""
   }
@@ -75,11 +90,21 @@ class TclExportHandler(val c: whitebox.Context) extends ExportHandler {
       case List(args) => args
       case _ => c.error(c.enclosingPosition, "multiple argument lists no supported for exported functions/methods"); null
     })
-      .map(a => getType(a.tpt))
-      .map{
-        case t if t <:< intType => TclType.Int
-      }
+      .map( a => tclType(getType(a.tpt)) )
       .zipWithIndex
+
+  private def getReturnType(f: DefDef)(implicit commonParts: CommonParts): ReturnType =
+    tclType(getType(f.tpt))
+
+  private def tclType(tpe: Type): TclType.Value = tpe match {
+    case t if t <:< intType => TclType.Int
+    case t if t <:< longType => TclType.Long
+    case t if t <:< booleanType => TclType.Boolean
+    case t if t <:< doubleType => TclType.Double
+    case t if t <:< floatType => TclType.Float
+    case t if t <:< stringType => TclType.String
+    case t if t =:= unitType => TclType.None
+  }
 
   private def genArgs(argTypes: ArgTypes)(implicit commonParts: CommonParts): Seq[Tree] = argTypes.flatMap(genArgExtraction)
 
@@ -87,13 +112,36 @@ class TclExportHandler(val c: whitebox.Context) extends ExportHandler {
     val argName = TermName("arg"+arg._2)
     arg._1 match {
       case TclType.Int =>
-        Seq(q"""val $argName = scalanative.native.stackalloc[Int]""",
-            q"""interp.getIntFromObj(objv(${arg._2+1}),$argName)""")
+        Seq(q"""val $argName  = interp.getInt(objv(${arg._2+1}))""")
+      case TclType.Long =>
+        Seq(q"""val $argName  = interp.getLong(objv(${arg._2+1}))""")
+      case TclType.Boolean =>
+        Seq(q"""val $argName = interp.getBoolean(objv(${arg._2+1}))""")
+      case TclType.Double =>
+        Seq(q"""val $argName = interp.getDouble(objv(${arg._2+1}))""")
+      case TclType.Float =>
+        Seq(q"""val $argName = interp.getFloat(objv(${arg._2+1}))""")
+      case TclType.String =>
+        Seq(q"""val $argName = tcl.getString(objv(${arg._2+1}))""")
     }
   }
 
+  private def genTclResult(retType: ReturnType)(implicit commonParts: CommonParts): Seq[Tree] = retType match {
+    case TclType.Int =>
+      Seq(q"""interp.setObjResult(tcl.newIntObj(res))""")
+    case TclType.Long =>
+      Seq(q"""interp.setObjResult(tcl.newLongObj(res))""")
+    case TclType.Boolean =>
+      Seq(q"""interp.setObjResult(tcl.newBooleanObj(res))""")
+    case TclType.Double | TclType.Float =>
+      Seq(q"""interp.setObjResult(tcl.newDoubleObj(res))""")
+    case TclType.String =>
+      Seq(q"""interp.setObjResult(tcl.newStringObj(res))""")
+    case TclType.None => Nil
+  }
+
   private def genArgList(argTypes: ArgTypes)(implicit commonParts: CommonParts): Seq[Tree] = argTypes map {
-    case (tpe,idx) if tpe == TclType.Int => q"!${TermName("arg"+idx)}"
+    case (tpe,idx) => q"${TermName("arg"+idx)}"
   }
 
   private def genRegistration(f: DefDef)(implicit commonParts: CommonParts): Tree = {
@@ -103,4 +151,7 @@ class TclExportHandler(val c: whitebox.Context) extends ExportHandler {
 
   private def genTclCommandName(f: DefDef)(implicit commonParts: CommonParts) =
     commonParts.fullName.replaceAll("\\.","::") + "::" + f.name.toString
+
+//  private def genQualifiedName(path: Seq[String]): Tree =
+//    path.foldLeft()
 }

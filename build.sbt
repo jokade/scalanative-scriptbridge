@@ -7,7 +7,7 @@ scalaVersion in ThisBuild := "2.11.12"
 val Version = new {
   val smacrotools = "0.0.8"
   val cobj        = "0.0.5-SNAPSHOT"
-  val utest       = "0.6.3"
+  val utest       = "0.6.4"
 }
 
 
