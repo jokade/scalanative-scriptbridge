@@ -3,7 +3,7 @@ package tcl.scriptbridge
 import de.surfice.smacrotools.{MacroAnnotationHandler, WhiteboxMacroTools}
 
 import scala.reflect.macros.whitebox
-import scala.scalanative.scriptbridge.ExportHandler
+import scala.scalanative.native.scriptbridge.ExportHandler
 
 class TclExportHandler(val c: whitebox.Context) extends ExportHandler {
   import c.universe._

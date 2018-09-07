@@ -1,4 +1,4 @@
-package scala.scalanative.scriptbridge
+package scala.scalanative.native.scriptbridge
 
 import de.surfice.smacrotools.MacroAnnotationHandler
 

@@ -2,7 +2,7 @@ import de.surfice.smacrotools.debug
 import tcl.scriptbridge.TclBridgeObject
 import tcl.{TclClientData, TclInterp, TclStatus}
 
-import scala.scalanative.scriptbridge.Export
+import scala.scalanative.Export
 import scalanative.native._
 
 object Main {

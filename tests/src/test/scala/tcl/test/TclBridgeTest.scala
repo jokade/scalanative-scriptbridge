@@ -5,7 +5,7 @@ import tcl.TclInterp
 import tcl.scriptbridge.TclBridgeObject
 import utest._
 
-import scala.scalanative.scriptbridge.Export
+import scala.scalanative.Export
 
 object TclBridgeTest extends TestSuite {
   val tests = Tests {

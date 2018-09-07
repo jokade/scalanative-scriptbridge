@@ -1,9 +1,9 @@
-package scala.scalanative.scriptbridge
+package scala.scalanative.native.scriptbridge
 
-import scala.language.experimental.macros
 import de.surfice.smacrotools.MacroAnnotationHandler
 
 import scala.annotation.{StaticAnnotation, compileTimeOnly}
+import scala.language.experimental.macros
 import scala.reflect.macros.whitebox
 
 @compileTimeOnly("enable macro paradise to expand macro annotations")
@@ -25,7 +25,11 @@ object Export {
 
     override def createCompanion: Boolean = true
 
-    val handlerClasses = Seq("tcl.scriptbridge.TclExportHandler")
+    val handlerClasses: Seq[String] = setting("scalanative.scriptbridge.handlers","") match {
+      case "" => Nil
+      case s => s.split(";")
+    }
+//      Seq("tcl.scriptbridge.TclExportHandler")
 
     val handlers = handlerClasses map { cls =>
       getClass.getClassLoader.loadClass(cls).getConstructors.head.newInstance(c).asInstanceOf[MacroAnnotationHandler]

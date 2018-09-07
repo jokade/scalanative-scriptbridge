@@ -5,9 +5,13 @@ version in ThisBuild := "0.0.1-SNAPSHOT"
 scalaVersion in ThisBuild := "2.11.12"
 
 val Version = new {
-  val smacrotools = "0.0.8"
-  val cobj        = "0.0.5-SNAPSHOT"
-  val utest       = "0.6.4"
+  val smacrotools   = "0.0.8"
+  val cobj          = "0.0.5-SNAPSHOT"
+  val utest         = "0.6.4"
+  val sbt_0_13      = "0.13.17"
+  val sbt_1_0       = "1.1.0"
+  val platform_deps = "1.0.0-M2"
+  val scalanative   = "0.3.8"
 }
 
 
@@ -30,7 +34,7 @@ lazy val nativeSettings = Seq(
 )
 
 lazy val scriptbridge = project.in(file("."))
-  .aggregate(macros,tcl)
+  .aggregate(macros,tcl,plugin)
   .settings(dontPublish:_*)
   .settings(
     name := "scalanative-scriptbridge"
@@ -41,7 +45,7 @@ lazy val macros = project
   .enablePlugins(ScalaNativePlugin)
   .settings(commonSettings ++ nativeSettings ++ publishingSettings:_*)
   .settings(
-    name :=" scalanative-scriptbridge-macros"
+    name :="scalanative-scriptbridge-macros"
   )
 
 lazy val tcl = project
@@ -52,10 +56,38 @@ lazy val tcl = project
     name := "scalanative-tcl"
   )
 
+
+lazy val plugin = project
+  .settings(publishingSettings: _*)
+  .settings(
+    name := "sbt-scalanative-scriptbridge",
+    sbtBinaryVersion in update := (sbtBinaryVersion in pluginCrossBuild).value,
+    scalaVersion := "2.10.6",
+    addSbtPlugin("org.portable-scala" % "sbt-platform-deps" % Version.platform_deps),
+    addSbtPlugin("org.scala-native" % "sbt-scala-native" % Version.scalanative),
+    sbtPlugin := true,
+    crossSbtVersions := Seq(Version.sbt_0_13, Version.sbt_1_0),
+    sourceGenerators in Compile += Def.task {
+      val file = (sourceManaged in Compile).value / "Version.scala"
+      IO.write(file,
+        s"""package de.surfice.sbt.scriptbridge
+        |object Version { val scriptbridgeVersion = "${version.value}" }
+        """.stripMargin)
+      Seq(file)
+    }.taskValue
+
+  )
+
+
 lazy val tests = project
   .enablePlugins(ScalaNativePlugin)
   .dependsOn(tcl)
   .settings(commonSettings ++ nativeSettings ++ dontPublish:_*)
+  .settings(
+    scalacOptions += "-Xmacro-settings:scalanative.scriptbridge.handlers=" + Seq(
+      "tcl.scriptbridge.TclExportHandler"
+    ).mkString(";")
+  )
 
 
 //lazy val test = project
