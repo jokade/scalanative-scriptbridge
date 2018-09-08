@@ -6,6 +6,7 @@ import de.surfice.smacrotools.debug
 import tcl.scriptbridge.TclBridgeObject
 
 import scalanative.native._
+import cobj._
 
 @CObj(prefix = "Tcl_", newSuffix = "CreateInterp", namingConvention = CObj.NamingConvention.PascalCase)
 @debug

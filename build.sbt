@@ -30,7 +30,9 @@ lazy val nativeSettings = Seq(
   nativeCompileOptions ++= Seq("-g"),
   nativeLinkStubs := true,
   nativeLinkingOptions ++= Seq(
-    "-ltcl")
+    "-ltcl",
+    "-lpython"
+  )
 )
 
 lazy val scriptbridge = project.in(file("."))
@@ -56,6 +58,13 @@ lazy val tcl = project
     name := "scalanative-tcl"
   )
 
+lazy val python = project
+  .enablePlugins(ScalaNativePlugin)
+  .dependsOn(macros)
+  .settings(commonSettings ++ nativeSettings ++ publishingSettings:_*)
+  .settings(
+    name := "scalanative-python"
+  )
 
 lazy val plugin = project
   .settings(publishingSettings: _*)
@@ -81,7 +90,7 @@ lazy val plugin = project
 
 lazy val tests = project
   .enablePlugins(ScalaNativePlugin)
-  .dependsOn(tcl)
+  .dependsOn(tcl,python)
   .settings(commonSettings ++ nativeSettings ++ dontPublish:_*)
   .settings(
     scalacOptions += "-Xmacro-settings:scalanative.scriptbridge.handlers=" + Seq(
