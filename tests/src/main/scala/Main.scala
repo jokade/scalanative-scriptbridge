@@ -9,25 +9,33 @@ import scriptbridge._
 object Main {
 
   def main(args: Array[String]): Unit = Zone{ implicit z =>
-//    val interp = TclInterp(Foo)
-    //tcl.newStringObj("foo")
-//    interp.exec("namespace eval Foo { namespace export bar }; namespace import Foo::*; puts [bar 42]")
- //   println(interp)
-//    tcl.newStringObj("foo")
+    val interp = TclInterp(Seq(Foo),useTclOO = true)
 
-    Python.setProgramName(c"tests-out")
-    Python.initialize()
-    Python.runSimpleString("print 2")
-    Python.finalizeInterp()
+    interp.exec(
+      """Foo create foo
+        |foo foo hello
+        |""".stripMargin)
+//    Python.setProgramName(c"tests-out")
+//    Python.initialize()
+//    Python.runSimpleString("print 2")
+//    Python.finalizeInterp()
 
   }
 
 }
 
-@extern
-object Py {
-  def PyInt_FromLong(l: CLong): Ptr[Byte] = extern
-  def PyLong_FromLong(l: CLong): Ptr[Byte] = extern
-  val Py_False: Ptr[Byte] = extern
+@Export
+@debug
+class Foo {
+  var x = 42
+  def foo(s: String): Unit = println(s)
+  def call(foo: Foo): Foo = foo
+
+}
+
+//@Export
+//@debug
+object Foo extends TclBridgeObject {
+  def bar(i: Int): Int = i+1
 }
 

@@ -30,7 +30,7 @@ lazy val nativeSettings = Seq(
   nativeCompileOptions ++= Seq("-g"),
   nativeLinkStubs := true,
   nativeLinkingOptions ++= Seq(
-    "-ltcl",
+    "-L/usr/local/opt/tcl-tk/lib","-ltcl8.6",
     "-lpython"
   )
 )

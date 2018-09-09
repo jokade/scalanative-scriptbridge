@@ -3,12 +3,12 @@ package tcl
 import java.io.File
 
 import de.surfice.smacrotools.debug
-import tcl.scriptbridge.TclBridgeObject
+import tcl.scriptbridge.{TclBridgeInstance, TclBridgeObject}
 
 import scalanative.native._
 import cobj._
 
-@CObj(prefix = "Tcl_", newSuffix = "CreateInterp", namingConvention = CObj.NamingConvention.PascalCase)
+@CObj(prefix = "Tcl_", newSuffix = "CreateInterp", namingConvention = NamingConvention.PascalCase)
 @debug
 final class TclInterp {
   def init(): TclStatus = extern
@@ -69,6 +69,13 @@ final class TclInterp {
     handleResult( evalFile(toCString(fileName)) )
   }
 
+  def registerBridgeObjects(objs: Iterable[TclBridgeObject]): Unit =
+    objs.foreach(_.__tcl.__register(this))
+
+  def registerObjType(typePtr: Ptr[TclObjType]): Unit = extern
+
+  def registerBridgeObjType(): Unit = registerObjType(tcl.bridgeObjectType)
+
   private def handleResult(status: TclStatus) = status match {
     case TclStatus.ERROR =>
       throw new TclException( fromCString(getStringResult()) )
@@ -78,10 +85,16 @@ final class TclInterp {
 
 object TclInterp {
 
-  def apply(bridgeObjects: TclBridgeObject*): TclInterp = {
+  def apply(bridgeObjects: Iterable[TclBridgeObject], useTclOO: Boolean = false): TclInterp = {
     val interp = new TclInterp
+    interp.registerBridgeObjType()
+    interp.registerBridgeObjects(bridgeObjects)
     interp.init()
-    bridgeObjects.foreach(_.__tcl.__register(interp))
+    if(useTclOO) {
+      interp.exec("package require TclOO")
+      bridgeObjects.foreach(o => interp.exec(o.__tcl.__tcloo))
+    }
     interp
   }
+
 }

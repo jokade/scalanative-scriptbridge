@@ -17,7 +17,7 @@ object Export {
 
     override def annotationName: String = "Export"
 
-    override def supportsClasses: Boolean = false
+    override def supportsClasses: Boolean = true
 
     override def supportsTraits: Boolean = false
 

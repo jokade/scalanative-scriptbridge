@@ -5,11 +5,14 @@ import tcl.TclInterp
 import tcl.scriptbridge.TclBridgeObject
 import utest._
 
-import scala.scalanative.Export
+import scalanative.native._
+import scriptbridge._
 
 object TclBridgeTest extends TestSuite {
   val tests = Tests {
     val interp = TclInterp(EUT)
+    interp.exec("set eut [tcl::test::EUT::new 1]")
+
     'functions-{
       'noArgs_noResult-{
         EUT.res = 0
@@ -42,12 +45,23 @@ object TclBridgeTest extends TestSuite {
         interp.exec("if {[tcl::test::EUT::stringArgStringResult {hello world}] != {hello world}} { error {expected {hello world}} }")
       }
     }
+
+    'methods-{
+      'incr-{
+        interp.exec("if {[tcl::test::EUT::incr $eut 123] != 124} { error {expected 124} }")
+      }
+
+    }
   }
 
 }
 
 @Export
 @debug
+class EUT(incr: Int) {
+  def incr(i: Int): Int = i + incr
+}
+
 object EUT extends TclBridgeObject {
   var res = 0
 
