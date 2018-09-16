@@ -59,6 +59,8 @@ final class TclInterp {
 
   def getFloat(obj: TclObj): Float = getDouble(obj).toFloat
 
+  def getPtr(obj: TclObj): Ptr[Byte] = getLong(obj).cast[Ptr[Byte]]
+
   def createObjCommand(cmdName: CString, proc: TclObjCmdProc, clientData: Ptr[Byte], deleteProc: TclCmdDeleteProc): TclCommand = extern
 
   def exec(script: CString): Unit = handleResult( eval(script) )

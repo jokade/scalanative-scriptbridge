@@ -10,7 +10,7 @@ import scriptbridge._
 
 object TclBridgeTest extends TestSuite {
   val tests = Tests {
-    val interp = TclInterp(EUT)
+    val interp = TclInterp(Seq(EUT))
     interp.exec("set eut [tcl::test::EUT::new 1]")
 
     'functions-{
@@ -44,6 +44,9 @@ object TclBridgeTest extends TestSuite {
       'stringArg_stringResult-{
         interp.exec("if {[tcl::test::EUT::stringArgStringResult {hello world}] != {hello world}} { error {expected {hello world}} }")
       }
+      'doublePtr-{
+        interp.exec("if {[tcl::test::EUT::doubleFromPtr [tcl::test::EUT::doublePtr]] != 1234.5678} { error {expected 1234.5678} }")
+      }
     }
 
     'methods-{
@@ -63,6 +66,9 @@ class EUT(incr: Int) {
 }
 
 object EUT extends TclBridgeObject {
+  private val _dPtr = stdlib.malloc(sizeof[Double]).cast[Ptr[Double]]
+  !_dPtr = 1234.5678
+
   var res = 0
 
   def noArgsNoResult(): Unit = {
@@ -84,4 +90,9 @@ object EUT extends TclBridgeObject {
   def stringArgStringResult(s: String): String = s
 
   def longArgsLongResult(a: Long, b: Long): Long = a + b
+
+  def doublePtr(): Ptr[Double] = _dPtr
+
+  def doubleFromPtr(ptr: Ptr[Double]): Double = !ptr
+
 }

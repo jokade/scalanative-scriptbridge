@@ -55,6 +55,8 @@ package object tcl {
     newObj(bridgeObjectType,c"<snobj>",scalaObj.cast[Ptr[Byte]],scalaObj.__tclTypeId)
   }
 
+  def newObj(ptr: Ptr[_]): TclObj = tcl.newLongObj(ptr.cast[Long])
+
   private def getBridgeObject(obj: TclObj): Ptr[TclObjStruct] = {
     val p = obj.cast[Ptr[TclObjStruct]]
     if((!p._4) != bridgeObjectType)

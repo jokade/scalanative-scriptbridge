@@ -3,6 +3,7 @@ package tcl.scriptbridge
 import de.surfice.smacrotools.{MacroAnnotationHandler, WhiteboxMacroTools}
 
 import scala.reflect.macros.whitebox
+import scala.scalanative.native.Ptr
 import scala.scalanative.native.scriptbridge.{ExportHandler, noexport}
 
 class TclExportHandler(val c: whitebox.Context) extends ExportHandler {
@@ -31,6 +32,7 @@ class TclExportHandler(val c: whitebox.Context) extends ExportHandler {
   val floatType = c.weakTypeOf[Float]
   val doubleType = c.weakTypeOf[Double]
   val stringType = c.weakTypeOf[String]
+  val ptrType = c.weakTypeOf[Ptr[_]]
   val unitType = c.weakTypeOf[Unit]
   val tclBridgeInstanceType = c.weakTypeOf[TclBridgeInstance]
 
@@ -41,6 +43,7 @@ class TclExportHandler(val c: whitebox.Context) extends ExportHandler {
     val Double = Value
     val Float = Value
     val String = Value
+    val Ptr = Value
     val None = Value
     val Scala = Value
   }
@@ -194,6 +197,7 @@ class TclExportHandler(val c: whitebox.Context) extends ExportHandler {
     case t if t <:< floatType => TclType.Float
     case t if t <:< stringType => TclType.String
     case t if t =:= unitType => TclType.None
+    case t if t <:< ptrType => TclType.Ptr
     case t => TclType.Scala
   }
 
@@ -217,6 +221,8 @@ class TclExportHandler(val c: whitebox.Context) extends ExportHandler {
         Seq(q"""val $argName = tcl.getString(objv($argIdx))""")
       case TclType.Scala =>
         Seq(q"""val $argName = tcl.getScalaRep(objv($argIdx)).cast[Object].asInstanceOf[${arg._1.scalaType}]""")
+      case TclType.Ptr =>
+        Seq(q"""val $argName = interp.getPtr(objv($argIdx)).cast[${arg._1.scalaType}]""")
     }
   }
 
@@ -231,7 +237,7 @@ class TclExportHandler(val c: whitebox.Context) extends ExportHandler {
       Seq(q"""interp.setObjResult(tcl.newDoubleObj(res))""")
     case TclType.String =>
       Seq(q"""interp.setObjResult(tcl.newStringObj(res))""")
-    case TclType.Scala =>
+    case TclType.Scala | TclType.Ptr =>
       Seq(q"""interp.setObjResult(tcl.newObj(res))""")
     case TclType.None => Nil
   }
