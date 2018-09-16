@@ -3,7 +3,7 @@ package tcl.scriptbridge
 import de.surfice.smacrotools.{MacroAnnotationHandler, WhiteboxMacroTools}
 
 import scala.reflect.macros.whitebox
-import scala.scalanative.native.scriptbridge.ExportHandler
+import scala.scalanative.native.scriptbridge.{ExportHandler, noexport}
 
 class TclExportHandler(val c: whitebox.Context) extends ExportHandler {
   import c.universe._
@@ -120,11 +120,7 @@ class TclExportHandler(val c: whitebox.Context) extends ExportHandler {
       obj.updBody(obj.modParts.body :+ tclObj)
     case default => default
   }
-  private def isPublic(m: DefDef): Boolean = ! (m.mods.hasFlag(Flag.PRIVATE) || m.mods.hasFlag(Flag.PROTECTED))
 
-  private def exportedMembers(body: Seq[Tree]): Seq[DefDef] = body collect {
-    case m: DefDef if isPublic(m) => m
-  }
 
   private def genConstructorWrapper(params: Seq[ValDef])(implicit objectParts: ObjectParts): Tree = {
     val callee = TypeName(objectParts.nameString)
@@ -147,7 +143,8 @@ class TclExportHandler(val c: whitebox.Context) extends ExportHandler {
     val argDefs = genArgs(argTypes,offset = 2)
     val argList = genArgList(argTypes,offset = 2)
     val resObj = genTclResult(getReturnType(f))
-    q"""def ${f.name}(data: tcl.TclClientData, interpPtr: Ptr[Byte], objc: Int, objv: Ptr[Ptr[Byte]]): Int = {
+    val name = TermName(exportedName(f))
+    q"""def $name(data: tcl.TclClientData, interpPtr: Ptr[Byte], objc: Int, objv: Ptr[Ptr[Byte]]): Int = {
           val interp = data.cast[tcl.TclInterp]
           val o = tcl.getScalaRep(objv(1)).cast[$tpe]
           ..$argDefs
@@ -163,7 +160,8 @@ class TclExportHandler(val c: whitebox.Context) extends ExportHandler {
     val argDefs = genArgs(argTypes)
     val argList = genArgList(argTypes)
     val resObj = genTclResult(getReturnType(f))
-    q"""def ${f.name}(data: tcl.TclClientData, interpPtr: Ptr[Byte], objc: Int, objv: Ptr[Ptr[Byte]]): Int = {
+    val name = TermName(exportedName(f))
+    q"""def $name(data: tcl.TclClientData, interpPtr: Ptr[Byte], objc: Int, objv: Ptr[Ptr[Byte]]): Int = {
           val interp = data.cast[tcl.TclInterp]
           ..$argDefs
           val res = $callee.${f.name}(..$argList)
@@ -244,7 +242,8 @@ class TclExportHandler(val c: whitebox.Context) extends ExportHandler {
 
   private def genRegistration(f: DefDef)(implicit commonParts: CommonParts): Tree = {
     val cmdName = genCStringTree(genTclCommandName(f))
-    q"""interp.createObjCommand($cmdName,CFunctionPtr.fromFunction4(__tcl.${f.name}),interp.cast[Ptr[Byte]],null)"""
+    val name = TermName(exportedName(f))
+    q"""interp.createObjCommand($cmdName,CFunctionPtr.fromFunction4(__tcl.$name),interp.cast[Ptr[Byte]],null)"""
   }
 
   private def genTclOOWrapper(data: Data)(implicit commonParts: CommonParts): String = {
@@ -272,7 +271,7 @@ class TclExportHandler(val c: whitebox.Context) extends ExportHandler {
   }
 
   private def genTclCommandName(f: DefDef)(implicit commonParts: CommonParts): String =
-    genTclCommandName(commonParts.fullName,f.name.toString)
+    genTclCommandName(commonParts.fullName,exportedName(f))
 
   private def genTclCommandName(prefix: String, cmd: String): String =
     genTclPath(prefix) + "::" + cmd

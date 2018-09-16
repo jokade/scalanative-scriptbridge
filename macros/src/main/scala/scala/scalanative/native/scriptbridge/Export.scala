@@ -11,6 +11,10 @@ class Export extends StaticAnnotation {
   def macroTransform(annottees: Any*): Any = macro Export.Macro.impl
 }
 
+class export(name: String = null) extends StaticAnnotation
+
+class noexport extends StaticAnnotation
+
 object Export {
 
   private[scriptbridge] class Macro(val c: whitebox.Context) extends MacroAnnotationHandler {
@@ -39,6 +43,7 @@ object Export {
     override def analyze: Analysis = handlers.foldLeft(super.analyze)((analyzer,handler) => analyzer andThen handler.analyze.asInstanceOf[Analysis])
 
     override def transform: Transformation = handlers.foldLeft(super.transform)((transformer,handler) => transformer andThen handler.transform.asInstanceOf[Transformation])
+
   }
 
 }
