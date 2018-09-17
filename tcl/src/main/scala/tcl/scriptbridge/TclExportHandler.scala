@@ -254,24 +254,46 @@ class TclExportHandler(val c: whitebox.Context) extends ExportHandler {
 
   private def genTclOOWrapper(data: Data)(implicit commonParts: CommonParts): String = {
     val clsPath = genTclPath(commonParts.fullName)
+    val clsName = commonParts.nameString
+    val pkgPath = clsPath.split("::").init.mkString("::")
     val newCmd = genTclCommandName(commonParts.fullName,"new")
     val newArgs = data.ctorParams.map(_.name.toString)
+
     val methods = data.exportedMethods.map { m =>
       val args = m.vparamss match {
         case List(xs) => xs.map(_.name.toString)
         case Nil => Nil
       }
       val call = genTclCommandName(commonParts.fullName,m.name.toString)
-        s"""|  method ${m.name} {${args.mkString(", ")}} {
+        s"""|  method ${m.name} {${args.mkString(" ")}} {
             |    $call $$Ref ${args.map("$"+_).mkString(" ")}
             |  }""".stripMargin
     } mkString "\n"
-    s"""oo::class create $clsPath {
+
+    val functions = data.exportedFunctions.map { f =>
+      val args = f.vparamss match {
+        case List(xs) => xs.map(_.name.toString)
+        case Nil => Nil
+      }
+      val call = genTclCommandName(commonParts.fullName,f.name.toString)
+      s"""|  method ${f.name} {${args.mkString(" ")}} {
+          |    $call ${args.map("$"+_).mkString(" ")}
+          |  }""".stripMargin
+    } mkString "\n"
+
+    val exports = s"namespace eval $pkgPath { namespace export $clsName }"
+
+    s"""$exports
+       |oo::class create $clsPath {
        |  variable Ref
-       |  constructor {${newArgs.mkString(", ")}} {
+       |  constructor {${newArgs.mkString(" ")}} {
        |    set Ref [$newCmd ${newArgs.map("$"+_).mkString(" ")}]
        |  }
        |$methods
+       |}
+       |
+       |oo::objdefine $clsPath {
+       |$functions
        |}
     """.stripMargin
   }

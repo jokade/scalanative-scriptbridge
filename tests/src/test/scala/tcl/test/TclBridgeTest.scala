@@ -10,7 +10,7 @@ import scriptbridge._
 
 object TclBridgeTest extends TestSuite {
   val tests = Tests {
-    val interp = TclInterp(Seq(EUT))
+    val interp = TclInterp(Seq(EUT),useTclOO = true)
     interp.exec("set eut [tcl::test::EUT::new 1]")
 
     'functions-{
@@ -50,10 +50,22 @@ object TclBridgeTest extends TestSuite {
     }
 
     'methods-{
-      'incr-{
-        interp.exec("if {[tcl::test::EUT::incr $eut 123] != 124} { error {expected 124} }")
+      'add-{
+        interp.exec("if {[tcl::test::EUT::add $eut 123 321] != 445} { error {expected 445} }")
       }
+    }
 
+    'TclOO-{
+      interp.exec(
+        """
+          |namespace import tcl::test::EUT
+          |
+          |EUT create eut 1
+          |
+          |if {[eut add 123 321] != 445} { error {expected 445} }
+          |
+          |if {[EUT boolArgBoolResult true]} { error {expected false} }
+        """.stripMargin)
     }
   }
 
@@ -62,7 +74,7 @@ object TclBridgeTest extends TestSuite {
 @Export
 @debug
 class EUT(incr: Int) {
-  def incr(i: Int): Int = i + incr
+  def add(a: Int, b: Int): Int = a + b + incr
 }
 
 object EUT extends TclBridgeObject {
