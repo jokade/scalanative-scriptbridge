@@ -10,7 +10,7 @@ import scriptbridge._
 
 object TclBridgeTest extends TestSuite {
   val tests = Tests {
-    val interp = TclInterp(Seq(EUT),useTclOO = true)
+    val interp = TclInterp(Seq(EUT,Number),useTclOO = true)
     interp.exec("set eut [tcl::test::EUT::new 1]")
 
     'functions-{
@@ -58,30 +58,41 @@ object TclBridgeTest extends TestSuite {
     'TclOO-{
       interp.exec(
         """
-          |namespace import tcl::test::EUT
+          |namespace import tcl::test::*
           |
           |EUT create eut 1
           |
-          |if {[eut add 123 321] != 445} { error {expected 445} }
+          |set i 321
+          |if {[eut add 123 $i] != 445} { error {expected 445} }
           |
           |if {[EUT boolArgBoolResult true]} { error {expected false} }
+          |
+          |set num [Number new 42]
+          |if {[eut addNumbers $num $num] != 84} { error {expected 84} }
         """.stripMargin)
     }
   }
 
 }
 
+
+@Export
+case class Number(value: Int)
+object Number extends TclBridgeObject
+
 @Export
 @debug
 class EUT(incr: Int) {
+  val foo: Int = 42
   def add(a: Int, b: Int): Int = a + b + incr
+  def addNumbers(a: Number, b: Number): Int = a.value + b.value
 }
 
 object EUT extends TclBridgeObject {
   private val _dPtr = stdlib.malloc(sizeof[Double]).cast[Ptr[Double]]
   !_dPtr = 1234.5678
 
-  var res = 0
+  var res: Int = 0
 
   def noArgsNoResult(): Unit = {
     res = 1
@@ -107,4 +118,5 @@ object EUT extends TclBridgeObject {
 
   def doubleFromPtr(ptr: Ptr[Double]): Double = !ptr
 
+  def number(i: Int): Number = new Number(i)
 }

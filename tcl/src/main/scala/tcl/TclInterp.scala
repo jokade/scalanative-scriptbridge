@@ -93,7 +93,20 @@ object TclInterp {
     interp.registerBridgeObjects(bridgeObjects)
     interp.init()
     if(useTclOO) {
-      interp.exec("package require TclOO")
+      interp.exec(
+        """package require TclOO
+          |oo::class create ScalaBridgeObject {
+          |  variable Ref
+          |  method __ref {} { return $Ref }
+          |}
+          |proc ::__arg {arg} {
+          |  if {[info object isa object $arg] && [info object class $arg ::ScalaBridgeObject]} {
+          |    return [$arg __ref]
+          |  } else {
+          |    return $arg
+          |  }
+          |}
+        """.stripMargin)
       bridgeObjects.foreach(o => interp.exec(o.__tcl.__tcloo))
     }
     interp

@@ -20,15 +20,17 @@ trait ExportHandler extends MacroAnnotationHandler {
   protected def genCStringTree(s: String): Tree =
     q"scalanative.native.CQuote(StringContext(${Literal(Constant(s))})).c()"
 
-  protected def isPublic(m: DefDef): Boolean = ! (m.mods.hasFlag(Flag.PRIVATE) || m.mods.hasFlag(Flag.PROTECTED))
+  protected def isPublic(m: ValOrDefDef): Boolean = ! (m.mods.hasFlag(Flag.PRIVATE) || m.mods.hasFlag(Flag.PROTECTED))
 
-  protected def shouldExport(m: DefDef): Boolean = isPublic(m) && !hasAnnotation(m.mods.annotations,noexportAnnot)
+  protected def shouldExport(m: ValOrDefDef): Boolean = isPublic(m) && !hasAnnotation(m.mods.annotations,noexportAnnot)
 
-  protected def exportedMembers(body: Seq[Tree]): Seq[DefDef] = body collect {
+  protected def exportedMembers(body: Seq[Tree]): (Seq[DefDef],Seq[ValDef]) = (body collect {
     case m: DefDef if shouldExport(m) => m
-  }
+  }, body collect {
+    case v: ValDef if shouldExport(v) => v
+  })
 
-  protected def exportedName(m: DefDef): String =
+  protected def exportedName(m: ValOrDefDef): String =
     findAnnotation(m.mods.annotations,"export")
       .map( a => extractAnnotationParameters(a,exportAnnotParams).get("name").map{
         case Some(a) => extractStringConstant(a).get
