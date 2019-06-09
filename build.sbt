@@ -6,7 +6,7 @@ scalaVersion in ThisBuild := "2.11.12"
 
 val Version = new {
   val smacrotools   = "0.0.8"
-  val cobj          = "0.0.5"
+  val cobj          = "0.0.6"
   val utest         = "0.6.4"
   val sbt_0_13      = "0.13.17"
   val sbt_1_0       = "1.1.0"
@@ -97,7 +97,6 @@ lazy val tests = project
       "tcl.scriptbridge.TclExportHandler"
     ).mkString(";")
   )
-
 
 //lazy val test = project
 //  .enablePlugins(ScalaNativePlugin)

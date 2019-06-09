@@ -39,6 +39,8 @@ class TclExportHandler(val c: whitebox.Context) extends ExportHandler {
   val ptrType = c.weakTypeOf[Ptr[_]]
   val unitType = c.weakTypeOf[Unit]
   val tclBridgeInstanceType = c.weakTypeOf[TclBridgeInstance]
+  val tclBridgeObject = tq"tcl.scriptbridge.TclBridgeObject"
+  val tTclBridgeObject = c.weakTypeOf[TclBridgeObject]
 
   object TclType extends Enumeration {
     val Int = Value
@@ -59,8 +61,12 @@ class TclExportHandler(val c: whitebox.Context) extends ExportHandler {
       val ctorParams = cls.params.collect{
         case p: ValDef => p
       }
+      val paramVals = cls.params.collect{
+        case v @ ValDef(mods,_,_,_) if mods.hasFlag(Flag.PARAMACCESSOR) => v
+      }
 
       val (exportedMethods,exportedClsVals) = exportedMembers(cls.body)
+
 
       val (exportedFunctions,exportedObjectVals) = cls.companion match {
         case Some(obj) => exportedMembers(obj.body)
@@ -70,7 +76,7 @@ class TclExportHandler(val c: whitebox.Context) extends ExportHandler {
         .withIsClass(true)
         .withCtorParams(ctorParams)
         .withExportedMethods(exportedMethods)
-        .withExportedClsVals(exportedClsVals)
+        .withExportedClsVals(exportedClsVals++paramVals)
         .withExportedFunctions(exportedFunctions)
         .withExportedObjectVals(exportedObjectVals)
       )
@@ -98,8 +104,9 @@ class TclExportHandler(val c: whitebox.Context) extends ExportHandler {
       implicit val objectParts = obj.modParts
       val methodWrappers = obj.data.exportedMethods map genMethodWrapper
       val functionWrappers = obj.data.exportedFunctions map genFunctionWrapper
+      val valWrappers = obj.data.exportedClsVals map genValWrapper
       val objectValWrappers = obj.data.exportedObjectVals map genObjectValWrapper
-      val registerCommands = (obj.data.exportedMethods ++ obj.data.exportedFunctions) map genRegistration
+      val registerCommands = (obj.data.exportedMethods ++ obj.data.exportedClsVals ++ obj.data.exportedFunctions) map genRegistration
 
       val constructor =
         if(obj.data.isClass) genConstructorWrapper(obj.data.ctorParams)
@@ -120,6 +127,7 @@ class TclExportHandler(val c: whitebox.Context) extends ExportHandler {
              import scalanative.native._
              $constructor
              ..$methodWrappers
+             ..$valWrappers
              ..${objectValWrappers.flatten}
              ..$functionWrappers
 
@@ -131,7 +139,14 @@ class TclExportHandler(val c: whitebox.Context) extends ExportHandler {
              val __tcloo = $tcloo
            }
          """
-      obj.updBody(obj.modParts.body :+ tclObj)
+
+      val updParent = obj.modParts.parents.find{ parent => getType(parent,true) <:< tTclBridgeObject } match {
+        case None => Some(tclBridgeObject)
+        case _ => None
+      }
+      obj
+        .updBody(obj.modParts.body :+ tclObj)
+        .updParents(obj.modParts.parents ++ updParent)
     case default => default
   }
 
@@ -158,11 +173,49 @@ class TclExportHandler(val c: whitebox.Context) extends ExportHandler {
     val argList = genArgList(argTypes,offset = 2)
     val resObj = genTclResult(getReturnType(f))
     val name = TermName(exportedName(f))
+    val call = f.vparamss match {
+      case Nil => q"o.${f.name}"
+      case List(_) => q"o.${f.name}(..$argList)"
+      case _ =>
+        c.error(c.enclosingPosition,"mutliple parameter lists are not supported")
+        ???
+    }
     q"""def $name(data: tcl.TclClientData, interpPtr: Ptr[Byte], objc: Int, objv: Ptr[Ptr[Byte]]): Int = {
           val interp = data.cast[tcl.TclInterp]
           val o = tcl.getScalaRep(objv(1)).cast[$tpe]
           ..$argDefs
-          val res = o.${f.name}(..$argList)
+          val res = $call
+          ..$resObj
+          tcl.TclStatus.OK
+        }"""
+  }
+
+  private def genValWrapper(v: ValDef)(implicit objectParts: ObjectParts): Tree = {
+    val tpe = TypeName(objectParts.nameString)
+    val resObj = genTclResult(getReturnType(v))
+    val name = TermName(exportedName(v))
+    val argTypes = getArgTypes(List(v))
+    val argDefs = genArgs(argTypes,offset = 2)
+    val argList = genArgList(argTypes,offset = 2)
+    if(v.mods.hasFlag(Flag.MUTABLE))
+      q"""def $name(data: tcl.TclClientData, interpPtr: Ptr[Byte], objc: Int, objv: Ptr[Ptr[Byte]]): Int = {
+          val interp = data.cast[tcl.TclInterp]
+          val o = tcl.getScalaRep(objv(1)).cast[$tpe]
+          if(objc>2) {
+            ..$argDefs
+            o.${v.name} = arg2
+          }
+          else {
+            val res = o.${v.name}
+            ..$resObj
+          }
+          tcl.TclStatus.OK
+        }"""
+    else
+       q"""def $name(data: tcl.TclClientData, interpPtr: Ptr[Byte], objc: Int, objv: Ptr[Ptr[Byte]]): Int = {
+          val interp = data.cast[tcl.TclInterp]
+          val o = tcl.getScalaRep(objv(1)).cast[$tpe]
+          val res = o.${v.name}
           ..$resObj
           tcl.TclStatus.OK
         }"""
@@ -272,7 +325,7 @@ class TclExportHandler(val c: whitebox.Context) extends ExportHandler {
     case (_,idx) => q"${TermName("arg"+(idx+offset))}"
   }
 
-  private def genRegistration(f: DefDef)(implicit commonParts: CommonParts): Tree = {
+  private def genRegistration(f: ValOrDefDef)(implicit commonParts: CommonParts): Tree = {
     val cmdName = genCStringTree(genTclCommandName(f))
     val name = TermName(exportedName(f))
     q"""interp.createObjCommand($cmdName,CFunctionPtr.fromFunction4(__tcl.$name),interp.cast[Ptr[Byte]],null)"""
@@ -295,6 +348,18 @@ class TclExportHandler(val c: whitebox.Context) extends ExportHandler {
     val pkgPath = clsPath.split("::").init.mkString("::")
     val newCmd = genTclCommandName(commonParts.fullName,"new")
     val newArgs = data.ctorParams.map(_.name.toString)
+
+    val accessors = data.exportedClsVals.map { v =>
+      val call = genTclCommandName(commonParts.fullName,v.name.toString)
+      if(v.mods.hasFlag(Flag.MUTABLE))
+        s"""  method ${v.name} {args} {
+           |    $call $$Ref {*}$$args
+           |  }""".stripMargin
+      else
+        s"""  method ${v.name} {} {
+           |    $call $$Ref
+           |  }""".stripMargin
+    } mkString "\n"
 
     val methods = data.exportedMethods.map { m =>
       val params = genTclOOParamListString(m)
@@ -324,6 +389,7 @@ class TclExportHandler(val c: whitebox.Context) extends ExportHandler {
        |  constructor {${newArgs.mkString(" ")}} {
        |    set Ref [$newCmd ${newArgs.map("$"+_).mkString(" ")}]
        |  }
+       |$accessors
        |$methods
        |
        |  export __ref
@@ -335,7 +401,8 @@ class TclExportHandler(val c: whitebox.Context) extends ExportHandler {
     """.stripMargin
   }
 
-  private def genTclCommandName(f: DefDef)(implicit commonParts: CommonParts): String =
+
+  private def genTclCommandName(f: ValOrDefDef)(implicit commonParts: CommonParts): String =
     genTclCommandName(commonParts.fullName,exportedName(f))
 
   private def genTclCommandName(prefix: String, cmd: String): String =

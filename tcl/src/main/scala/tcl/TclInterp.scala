@@ -9,8 +9,8 @@ import scalanative.native._
 import cobj._
 
 @CObj(prefix = "Tcl_", newSuffix = "CreateInterp", namingConvention = NamingConvention.PascalCase)
-@debug
-final class TclInterp {
+//@debug
+class TclInterp {
   def init(): TclStatus = extern
 
   def eval(script: CString): TclStatus = extern
@@ -87,8 +87,7 @@ final class TclInterp {
 
 object TclInterp {
 
-  def apply(bridgeObjects: Iterable[TclBridgeObject], useTclOO: Boolean = false): TclInterp = {
-    val interp = new TclInterp
+  def initBridge(interp: TclInterp, bridgeObjects: Iterable[TclBridgeObject], useTclOO: Boolean): TclInterp = {
     interp.registerBridgeObjType()
     interp.registerBridgeObjects(bridgeObjects)
     interp.init()
@@ -111,5 +110,10 @@ object TclInterp {
     }
     interp
   }
+
+  @name("Tcl_CreateInterp")
+  def apply(): TclInterp = extern
+
+  def apply(bridgeObjects: Iterable[TclBridgeObject], useTclOO: Boolean = false): TclInterp = initBridge(TclInterp(),bridgeObjects,useTclOO)
 
 }

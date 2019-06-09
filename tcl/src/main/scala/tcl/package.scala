@@ -35,6 +35,8 @@ package object tcl {
 
   type TclObjType = CStruct5[CString,TclFreeInternalRepProc,TclDupInternalRepProc,TclUpdateStringProc,TclSetFromAnyProc]
 
+  type TclAppInitProc = CFunctionPtr1[Ptr[Byte],Int]
+
   def newObj(objType: Ptr[TclObjType], stringRep: CString, internalRep: Ptr[Byte], internalType: Int): TclObj = {
     val obj = api.Tcl_NewObj().cast[Ptr[TclObjStruct]]
     //!obj._2 = c"c"//stringRep
@@ -135,5 +137,6 @@ package object tcl {
     // TODO: replace CUnsignedLongLong with Ptr[Byte] when scala-native/scala-native#1347 is resolved
     def Tcl_NewStringObj(bytes: CString, length: Int): CUnsignedLongLong = extern
     def Tcl_GetString(objPtr: TclObj): CString = extern
+    def Tcl_FindExecutable(argv0: CString): Unit = extern
   }
 }
